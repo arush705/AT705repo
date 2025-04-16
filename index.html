@@ -1,0 +1,260 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row =>
+                    row.some(cell => cell !== '' && cell !== null && cell !== undefined)
+                );
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Compressor & Resizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"],
+        input[type="number"],
+        input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #preview, #output {
+            max-width: 100%;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .image-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .image-box {
+            text-align: center;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+        }
+        #downloadLink {
+            display: none;
+            margin-top: 10px;
+            color: #28a745;
+            text-decoration: none;
+        }
+        #downloadLink:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Compressor & Resizer</h1>
+    <div class="container">
+        <div class="form-group">
+            <label for="imageInput">Upload Image (JPG, PNG, JPEG)</label>
+            <input type="file" id="imageInput" accept="image/jpeg,image/png,image/jpg">
+        </div>
+        <div class="form-group">
+            <label for="quality">Compression Quality: <span id="qualityValue">0.8</span></label>
+            <input type="range" id="quality" min="0.1" max="1" step="0.1" value="0.8">
+        </div>
+        <div class="form-group">
+            <label for="width">Width (px, optional)</label>
+            <input type="number" id="width" placeholder="Enter width" min="1">
+        </div>
+        <div class="form-group">
+            <label for="height">Height (px, optional)</label>
+            <input type="number" id="height" placeholder="Enter height" min="1">
+        </div>
+        <button id="processBtn" disabled>Process Image</button>
+        <p id="error" class="error"></p>
+        <div class="image-container">
+            <div class="image-box">
+                <h3>Original</h3>
+                <img id="preview" alt="Original Image">
+                <p id="originalSize"></p>
+            </div>
+            <div class="image-box">
+                <h3>Processed</h3>
+                <img id="output" alt="Processed Image">
+                <p id="processedSize"></p>
+                <a id="downloadLink">Download Processed Image</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const qualityInput = document.getElementById('quality');
+        const qualityValue = document.getElementById('qualityValue');
+        const widthInput = document.getElementById('width');
+        const heightInput = document.getElementById('height');
+        const processBtn = document.getElementById('processBtn');
+        const preview = document.getElementById('preview');
+        const output = document.getElementById('output');
+        const error = document.getElementById('error');
+        const originalSize = document.getElementById('originalSize');
+        const processedSize = document.getElementById('processedSize');
+        const downloadLink = document.getElementById('downloadLink');
+
+        let originalImage = null;
+
+        // Update quality value display
+        qualityInput.addEventListener('input', () => {
+            qualityValue.textContent = qualityInput.value;
+        });
+
+        // Enable process button when valid image is uploaded
+        imageInput.addEventListener('change', () => {
+            error.textContent = '';
+            const file = imageInput.files[0];
+            if (file && ['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+                originalImage = file;
+                processBtn.disabled = false;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    preview.src = reader.result;
+                    originalSize.textContent = `Size: ${(file.size / 1024).toFixed(2)} KB`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                error.textContent = 'Please upload a valid JPG, PNG, or JPEG image.';
+                processBtn.disabled = true;
+                preview.src = '';
+                originalSize.textContent = '';
+            }
+            output.src = '';
+            processedSize.textContent = '';
+            downloadLink.style.display = 'none';
+        });
+
+        // Process image on button click
+        processBtn.addEventListener('click', () => {
+            if (!originalImage) return;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Resize if width or height is provided
+                    const newWidth = parseInt(widthInput.value) || width;
+                    const newHeight = parseInt(heightInput.value) || height;
+
+                    if (newWidth && newHeight) {
+                        width = newWidth;
+                        height = newHeight;
+                    } else if (newWidth) {
+                        height = (newWidth / img.width) * img.height;
+                        width = newWidth;
+                    } else if (newHeight) {
+                        width = (newHeight / img.height) * img.width;
+                        height = newHeight;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Convert to JPEG with specified quality
+                    const quality = parseFloat(qualityInput.value);
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+                    // Display processed image
+                    output.src = dataUrl;
+
+                    // Calculate and display processed size
+                    const byteString = atob(dataUrl.split(',')[1]);
+                    const sizeKB = (byteString.length / 1024).toFixed(2);
+                    processedSize.textContent = `Size: ${sizeKB} KB`;
+
+                    // Setup download link
+                    downloadLink.style.display = 'block';
+                    downloadLink.href = dataUrl;
+                    downloadLink.download = 'processed_image.jpg';
+
+                    // Force download by creating a temporary link
+                    downloadLink.onclick = (e) => {
+                        e.preventDefault();
+                        const tempLink = document.createElement('a');
+                        tempLink.href = dataUrl;
+                        tempLink.download = 'processed_image.jpg';
+                        document.body.appendChild(tempLink);
+                        tempLink.click();
+                        document.body.removeChild(tempLink);
+                    };
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(originalImage);
+        });
+    </script>
+</body>
+</html>
